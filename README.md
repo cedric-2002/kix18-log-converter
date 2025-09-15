@@ -7,6 +7,8 @@
 Ein Tool um die HTTP-Request-Logs von **KIX 18** in ein übersichtlicheres Format zu konvertieren (CSV oder JSON).
 Nützlich für die Auswertungen, Debugging oder Monitoring - Um die Daten in Grafana zu visualisieren.
 
+[![Live Demo](https://img.shields.io/badge/🚀%20Live%20Demo-Click%20Here-brightgreen?style=for-the-badge)](https://g9psj9-3000.csb.app/)
+
 ## Features
 - Liest KIX 18 HTTP-Request-Logs ein
 - Konvertiert in wählbare Formate (CSV, JSON)
