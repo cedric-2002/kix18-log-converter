@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>KIX Log → CSV/JSON Converter</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <main class="container">
+    <h1>KIX Log → CSV/JSON Converter</h1>
+    <p class="muted">Datei hochladen (z. B. <code>http-request.log.2025-09-10</code>), Trenner wählen, Spaltennamen in der Vorschau anpassen, exportieren als CSV/JSON.</p>
+
+    <section class="panel">
+      <div class="grid">
+        <div>
+          <label class="lbl">Datei</label>
+          <input type="file" id="file" accept="*/*" />
+        </div>
+        <div>
+          <label class="lbl">Delimiter</label>
+          <select id="delimiter">
+            <option value="auto">Automatisch</option>
+            <option value="\t">Tab (\t)</option>
+            <option value=",">Komma (,)</option>
+            <option value=";">Semikolon (;)</option>
+            <option value="|">Pipe (|)</option>
+            <option value="spaces">Mehrfach-Leerzeichen</option>
+          </select>
+        </div>
+        <div>
+          <label class="lbl">Vorschauzeilen</label>
+          <input type="number" id="previewRows" value="200" min="1" />
+        </div>
+        <div>
+          <label class="lbl">Spaltenzahl</label>
+          <input type="number" id="colCount" value="0" min="0" />
+        </div>
+      </div>
+      <div class="grid">
+        <div>
+          <label class="lbl">Export-Dateiname (ohne Endung)</label>
+          <input type="text" id="outName" value="http-request" />
+        </div>
+        <div>
+          <label class="lbl">CSV Trennzeichen</label>
+          <select id="csvDelim">
+            <option value=",">Komma (,)</option>
+            <option value=";">Semikolon (;)</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid">
+        <div>
+            <label class="lbl">Zeitspalte für ISO</label>
+            <select id="tsCol">
+              <option value="-1">Keine</option>
+            </select>
+        </div>
+        <div>
+          <label class="lbl">ISO Zeitmodus</label>
+          <select id="isoMode">
+            <option value="default">Mit Z (UTC)</option>
+            <option value="offset">Mit Offset (z.B. +02:00)</option>
+            <option value="none">Ohne (lokal)</option>
+          </select>
+        </div>
+        <div>
+            <label class="lbl">Zeitzonen-Offset</label>
+            <input type="text" id="tzOffset" value="+00:00"  placeholder="02:00"/>
+        </div>
+      </div>
+
+      <div class="btns">
+        <button id="btnSuggest">Header vorschlagen</button>
+        <button id="btnPreview">Vorschau aktualisieren</button>
+        <button id="btnCSV" class="accent">Als CSV exportieren</button>
+        <button id="btnJSON" class="accent-2">Als JSON exportieren</button>
+        <button id="btnSave" class="accent-3">CSV speichern</button>
+      </div>
+
+      <div id="meta" class="muted"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Vorschau</h2>
+      <div class="scroll-container">
+        <button class="scroll-btn left" id="scrollLeft">◀</button>
+        <div class="table-wrap" id="tableWrap">
+        </div>
+        <button class="scroll-btn right" id="scrollRight">▶</button>
+    </div>
+    </section>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>
