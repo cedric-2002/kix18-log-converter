@@ -1,0 +1,11 @@
+services:
+  kix-converter:
+    build: .
+    ports:
+      - "2000:2000"
+    environment:
+      - PORT=2000
+    volumes:
+      - ./saved:/app/saved
+    restart: unless-stopped
+    

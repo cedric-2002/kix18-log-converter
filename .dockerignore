@@ -1,0 +1,13 @@
+node_modules
+npm-debug.log
+.DS_Store
+
+saved
+*.csv
+*.json
+
+.git
+.gitignore
+
+# falls du Logs lokal rumliegen hast:
+*.log
