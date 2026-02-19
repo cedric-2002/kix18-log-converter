@@ -1,0 +1,117 @@
+/* Modal Root */
+.kix-modal-root[aria-hidden="true"] { display:none; }
+.kix-modal-root {
+  position:fixed;
+  inset:0;
+  z-index:9999;
+  display:block;
+  font-family: inherit;
+}
+
+.kix-modal-backdrop {
+  position:absolute;
+  inset:0;
+  background: rgba(0,0,0,.55);
+  backdrop-filter: blur(4px);
+}
+
+/* Modal Card */
+.kix-modal {
+  position:relative;
+  width:min(560px, calc(100% - 28px));
+  margin: 10vh auto 0 auto;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: linear-gradient(180deg, #111C33, #162447);
+  box-shadow: 0 20px 60px rgba(0,0,0,.55);
+  overflow:hidden;
+}
+
+.kix-modal-head{
+  display:flex;
+  align-items:flex-start;
+  gap:12px;
+  padding:14px 14px 10px 14px;
+  border-bottom:1px solid rgba(255,255,255,.08);
+}
+
+.kix-modal-icon{
+  width:38px;
+  height:38px;
+  border-radius:12px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background: rgba(47,111,237,.16);
+  color: var(--kix-blue-light, #2F6FED);
+  font-size:18px;
+  flex-shrink:0;
+}
+
+.kix-modal-title{
+  font-weight:650;
+  font-size:16px;
+}
+
+.kix-modal-sub{
+  font-size:12px;
+  margin-top:2px;
+  opacity:.9;
+}
+
+.kix-modal-x{
+  margin-left:auto;
+  width:34px;
+  height:34px;
+  border-radius:10px;
+  border:1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.06);
+  color:#fff;
+  cursor:pointer;
+}
+.kix-modal-x:hover { background: rgba(255,255,255,.10); }
+
+.kix-modal-body{
+  padding:14px;
+  font-size:13px;
+  line-height:1.4;
+}
+
+.kix-modal-body p { margin: 0 0 10px; }
+
+.kix-modal-body input{
+  width:100%;
+  padding:10px 12px;
+  border-radius:10px;
+  border:1px solid rgba(255,255,255,.12);
+  background:#0f1630;
+  color:#fff;
+}
+
+.kix-modal-actions{
+  display:flex;
+  gap:10px;
+  justify-content:flex-end;
+  padding:12px 14px 14px 14px;
+  border-top:1px solid rgba(255,255,255,.08);
+}
+
+.kix-btn{
+  padding:9px 14px;
+  border-radius:10px;
+  border:1px solid rgba(255,255,255,.12);
+  background:#1e2b55;
+  color:#fff;
+  cursor:pointer;
+}
+.kix-btn:hover { background:#223063; }
+
+.kix-btn.primary{
+  border:none;
+  background: linear-gradient(180deg, var(--kix-green, #79C000), var(--kix-green-dark, #5C9900));
+}
+
+.kix-btn.danger{
+  border:none;
+  background: linear-gradient(180deg, #E0523E, #c63c2c);
+}

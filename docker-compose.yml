@@ -8,4 +8,5 @@ services:
     volumes:
       - ./saved:/app/saved
     restart: unless-stopped
+    container_name: kix-log-converter
     

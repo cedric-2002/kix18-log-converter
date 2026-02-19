@@ -1,6 +1,6 @@
 const els = {
   file:        document.getElementById('file'),
-  logType:     document.getElementById('logType'), // <<< NEU (optional)
+  logType:     document.getElementById('logType'),
   delimiter:   document.getElementById('delimiter'),
   previewRows: document.getElementById('previewRows'),
   colCount:    document.getElementById('colCount'),
@@ -17,16 +17,29 @@ const els = {
   isoMode:     document.getElementById('isoMode'),
   tzOffset:    document.getElementById('tzOffset'),
   scrollLeft:  document.getElementById('scrollLeft'),
-  scrollRight: document.getElementById('scrollRight')
+  scrollRight: document.getElementById('scrollRight'),
+  btnRefreshSaved: document.getElementById('btnRefreshSaved'),
+  savedList: document.getElementById('savedList'),
+  fileMeta: document.getElementById('fileMeta') // optional (wenn du es im HTML hast)
 };
 
 let headers = [];
 let lastPreview = { rows: [], colCount: 0, detected: { delim: 'auto', label: '' } };
 
 function escapeHtml(s){
-  return String(s).replace(/[&<>"']/g, m => ({
+  return String(s ?? '').replace(/[&<>"']/g, m => ({
     '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
   }[m]));
+}
+
+// Helper: Modal fallback (falls modal.js mal nicht geladen ist)
+function uiAlert(msg){ return window.KixModal ? KixModal.alert(msg) : alert(msg); }
+function uiError(msg){ return window.KixModal ? KixModal.error(msg) : alert(msg); }
+function uiConfirm(msg, opts){ return window.KixModal ? KixModal.confirm(msg, opts) : Promise.resolve(confirm(msg)); }
+function uiPrompt(msg, opts){
+  if (window.KixModal) return KixModal.prompt(msg, opts);
+  const v = prompt(msg, opts?.value ?? '');
+  return Promise.resolve(v);
 }
 
 // Gemeinsame FormData-Grundlage aufbauen
@@ -35,10 +48,7 @@ function buildFormDataBase() {
   if (!els.file.files[0]) throw new Error('Bitte eine Datei wählen.');
   fd.append('file', els.file.files[0]);
   fd.append('delimiter', els.delimiter.value || 'auto');
-
-  // <<< NEU: Log-Typ (auto/tabular/kix_bracket)
   if (els.logType) fd.append('logType', els.logType.value || 'auto');
-
   return fd;
 }
 
@@ -69,6 +79,7 @@ function initScrollButtons() {
     left.disabled  = wrap.scrollLeft <= 0;
     right.disabled = wrap.scrollLeft + wrap.clientWidth >= wrap.scrollWidth - 1;
   }
+
   left.addEventListener('click',  () => wrap.scrollBy({ left: -STEP, behavior: 'smooth' }));
   right.addEventListener('click', () => wrap.scrollBy({ left:  STEP, behavior: 'smooth' }));
 
@@ -137,22 +148,14 @@ async function doPreview(){
     if (!res.ok) throw new Error('Preview fehlgeschlagen');
     lastPreview = await res.json();
 
-    // <<< NEU: wenn Bracket-Log erkannt → sinnvolle Defaults setzen
     const detectedType = lastPreview?.detected?.logType;
     if (detectedType === 'kix_bracket') {
-      // Bracket hat fix 4 Spalten: timestamp, level, component, message
       headers = ['timestamp', 'level', 'component', 'message'];
       els.colCount.value = '4';
-
-      // Timestamp ist Spalte 0 → ISO-Optionen funktionieren sofort
       if (els.tsCol) els.tsCol.value = '0';
-
-      // Delimiter-Auswahl ist irrelevant (optional deaktivieren)
       if (els.delimiter) els.delimiter.disabled = true;
     } else {
       if (els.delimiter) els.delimiter.disabled = false;
-
-      // Wenn colCount nicht gesetzt ist, nimm was der Server liefert
       if (!els.colCount.value || els.colCount.value === '0') {
         els.colCount.value = lastPreview.colCount;
       }
@@ -170,13 +173,14 @@ async function doPreview(){
   } catch (e) {
     if (els.meta) els.meta.textContent = 'Fehler: ' + e.message;
     console.error(e);
+    await uiError('Fehler: ' + e.message);
   }
 }
 
 // Konvertierung anstoßen
 async function doConvert(format){
   try {
-    if (!els.file.files[0]) return alert('Bitte zuerst eine Datei wählen.');
+    if (!els.file.files[0]) return uiAlert('Bitte zuerst eine Datei wählen.');
     const fd = buildFormDataBase();
 
     fd.append('colCount', els.colCount.value || '0');
@@ -192,7 +196,7 @@ async function doConvert(format){
     const res = await fetch('/api/convert', { method:'POST', body: fd });
     if (!res.ok) {
       const t = await res.text();
-      return alert('Konvertierung fehlgeschlagen: ' + t);
+      return uiError('Konvertierung fehlgeschlagen:\n' + t);
     }
 
     const blob = await res.blob();
@@ -203,14 +207,14 @@ async function doConvert(format){
     a.click();
     setTimeout(()=>URL.revokeObjectURL(url), 1000);
   } catch (e) {
-    alert('Fehler: ' + e.message);
+    await uiError('Fehler: ' + e.message);
   }
 }
 
 // Datei speichern
 async function doSave(){
   try {
-    if (!els.file.files[0]) return alert('Bitte zuerst eine Datei wählen.');
+    if (!els.file.files[0]) return uiAlert('Bitte zuerst eine Datei wählen.');
     const fd = buildFormDataBase();
 
     fd.append('colCount', els.colCount.value || '0');
@@ -220,21 +224,130 @@ async function doSave(){
     fd.append('tsCol',    els.tsCol?.value || '-1');
     fd.append('isoMode',  els.isoMode?.value || 'default');
     fd.append('tzOffset', els.tzOffset?.value || '+00:00');
-
-    // Save ist aktuell nur CSV in deiner UI
     fd.append('format', 'csv');
 
     const res = await fetch('/api/save', { method:'POST', body: fd });
     if (!res.ok) {
       const t = await res.text();
-      return alert('Speichern fehlgeschlagen: ' + t);
+      return uiError('Speichern fehlgeschlagen:\n' + t);
     }
+
     const data = await res.json();
-    els.meta.innerHTML = `Gespeichert – abrufbar unter <a target="_blank" href="${data.url}">${location.origin}${data.url}</a>`;
+    await loadSavedFiles();
+
+    if (els.meta) {
+      els.meta.innerHTML = `Gespeichert – abrufbar unter <a target="_blank" href="${data.url}">${location.origin}${data.url}</a>`;
+    }
   } catch (e) {
-    alert('Fehler: ' + e.message);
+    await uiError('Fehler: ' + e.message);
   }
 }
+
+/* ---------------- Saved files helpers ---------------- */
+
+function fmtBytes(n){
+  if (!Number.isFinite(n)) return '-';
+  const units = ['B','KB','MB','GB','TB'];
+  let i=0; let x=n;
+  while (x>=1024 && i<units.length-1){ x/=1024; i++; }
+  return `${x.toFixed(i===0?0:1)} ${units[i]}`;
+}
+
+function fmtDate(ms){
+  if (!Number.isFinite(ms)) return '-';
+  const d = new Date(ms);
+  return d.toLocaleString();
+}
+
+async function loadSavedFiles(){
+  try {
+    const res = await fetch('/api/saved');
+    if (!res.ok) throw new Error('Konnte Liste nicht laden');
+    const data = await res.json();
+    const files = data.files || [];
+
+    if (!els.savedList) return;
+
+    if (!files.length) {
+      els.savedList.innerHTML = '<div class="muted">Noch keine Dateien gespeichert.</div>';
+      return;
+    }
+
+    let html = '<div class="saved-files">';
+    html += '<table><thead><tr><th>Datei</th><th>Größe</th><th>Geändert</th><th>Aktionen</th></tr></thead><tbody>';
+
+    for (const f of files) {
+      html += `<tr>
+        <td><a href="${f.url}" target="_blank">${escapeHtml(f.name)}</a></td>
+        <td>${escapeHtml(fmtBytes(f.size))}</td>
+        <td>${escapeHtml(fmtDate(f.mtimeMs))}</td>
+        <td>
+          <button data-act="rename" data-name="${escapeHtml(f.name)}">Umbenennen</button>
+          <button data-act="delete" data-name="${escapeHtml(f.name)}">Löschen</button>
+        </td>
+      </tr>`;
+    }
+
+    html += '</tbody></table></div>';
+    els.savedList.innerHTML = html;
+
+    // Delete -> Modal confirm
+    els.savedList.querySelectorAll('button[data-act="delete"]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const name = btn.dataset.name;
+
+        const ok = await uiConfirm(`Wirklich löschen?\n${name}`, {
+          title: 'Datei löschen',
+          sub: 'Diese Aktion kann nicht rückgängig gemacht werden.',
+          danger: true,
+          okText: 'Löschen',
+          cancelText: 'Abbrechen'
+        });
+        if (!ok) return;
+
+        const r = await fetch(`/api/saved/${encodeURIComponent(name)}`, { method: 'DELETE' });
+        if (!r.ok) return uiError('Löschen fehlgeschlagen.');
+
+        loadSavedFiles();
+      });
+    });
+
+    // Rename -> Modal prompt
+    els.savedList.querySelectorAll('button[data-act="rename"]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const from = btn.dataset.name;
+
+        const to = await uiPrompt('Neuer Dateiname (inkl. Endung):', {
+          title: 'Datei umbenennen',
+          sub: 'Bitte inkl. .csv / .json angeben.',
+          value: from,
+          okText: 'Umbenennen',
+          cancelText: 'Abbrechen'
+        });
+
+        if (!to || to === from) return;
+
+        const r = await fetch('/api/saved/rename', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ from, to })
+        });
+
+        if (r.status === 409) return uiError('Zieldatei existiert schon.');
+        if (!r.ok) return uiError('Umbenennen fehlgeschlagen.');
+
+        loadSavedFiles();
+      });
+    });
+
+  } catch (e) {
+    console.error(e);
+    if (els.savedList) els.savedList.textContent = 'Fehler: ' + e.message;
+    await uiError('Fehler: ' + e.message);
+  }
+}
+
+/* ---------------- Events ---------------- */
 
 if (els.btnSuggest) {
   els.btnSuggest.addEventListener('click', () => {
@@ -252,14 +365,28 @@ if (els.btnPreview) els.btnPreview.addEventListener('click', doPreview);
 if (els.btnCSV)     els.btnCSV.addEventListener('click', () => doConvert('csv'));
 if (els.btnJSON)    els.btnJSON.addEventListener('click', () => doConvert('json'));
 if (els.btnSave)    els.btnSave.addEventListener('click', () => doSave());
+if (els.btnRefreshSaved) els.btnRefreshSaved.addEventListener('click', loadSavedFiles);
 
-els.file.addEventListener('change', () => {
-  if (!els.outName.value || els.outName.value === 'http-request') {
-    const f = els.file.files[0]?.name || '';
-    els.outName.value = f.replace(/\.(log|txt|csv|tsv)$/i, '') || 'export';
-  }
-  doPreview();
-});
+if (els.file) {
+  els.file.addEventListener('change', () => {
+    const fobj = els.file.files[0];
+
+    // file meta text
+    if (els.fileMeta) {
+      els.fileMeta.textContent = fobj
+        ? `${fobj.name} • ${(fobj.size/1024/1024).toFixed(1)} MB`
+        : 'Keine Datei ausgewählt';
+    }
+
+    // outName auto (nur wenn leer)
+    if (!els.outName.value) {
+      const f = fobj?.name || '';
+      els.outName.value = f.replace(/\.(log|txt|csv|tsv)$/i, '') || 'export';
+    }
+
+    doPreview();
+  });
+}
 
 ['delimiter','previewRows','colCount'].forEach(id => {
   const el = els[id];
@@ -269,7 +396,6 @@ els.file.addEventListener('change', () => {
   });
 });
 
-// <<< NEU: LogType Änderung triggert Preview
 if (els.logType) {
   els.logType.addEventListener('change', () => {
     if (els.file.files[0]) doPreview();
@@ -283,3 +409,5 @@ if (els.logType) {
     if (els.file.files[0]) doPreview();
   });
 });
+
+loadSavedFiles();

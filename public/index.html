@@ -5,58 +5,95 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>KIX Log → CSV/JSON Converter</title>
   <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link rel="stylesheet" href="/modal.css" />
+
+
 </head>
 <body>
-  <main class="container">
-    <h1>KIX Log → CSV/JSON Converter</h1>
-    <p class="muted">Datei hochladen (z. B. <code>http-request.log.2025-09-10</code>), Trenner wählen, Spaltennamen in der Vorschau anpassen, exportieren als CSV/JSON.</p>
 
-    <section class="panel">
+  <main class="container">
+  <header class="topbar">
+    <div>
+      <h1>KIX Log Converter</h1>
+      <p class="muted">KIX Logs (http-request / backend) in CSV oder JSON konvertieren, Zeitstempel auf ISO umstellen, Ergebnisse speichern & verwalten.</p>
+    </div>
+  </header>
+
+  <!-- 1) Upload -->
+  <section class="panel">
+    <details open class="acc">
+  <summary class="acc-head">
+    <span>Datei auswählen</span>
+    <span class="acc-hint muted">Upload + Log-Typ</span>
+  </summary>
+
+  <!-- 1 Zeile: Icon + Upload -->
+  <div class="upload-row">
+    <div class="upload-icon" aria-hidden="true">
+      <i class="fa-solid fa-upload"></i>
+    </div>
+
+    <label class="upload-box">
+      <div class="upload-title">Datei hochladen</div>
+      <div class="upload-sub muted" id="fileMeta">Keine Datei ausgewählt</div>
+      <input type="file" id="file" accept="*/*" />
+    </label>
+  </div>
+
+  <!-- darunter: LogType + Delimiter -->
+  <div class="grid grid-2" style="margin-top:12px;">
+    <div>
+      <label class="lbl">Log-Typ</label>
+      <select id="logType">
+        <option value="auto">Automatisch erkennen</option>
+        <option value="tabular">Tabular (http-request)</option>
+        <option value="kix_bracket">KIX Bracket (backend)</option>
+      </select>
+    </div>
+
+    <div>
+      <label class="lbl">Delimiter</label>
+      <select id="delimiter">
+        <option value="auto">Automatisch</option>
+        <option value="\t">Tab (\t)</option>
+        <option value=",">Komma (,)</option>
+        <option value=";">Semikolon (;)</option>
+        <option value="|">Pipe (|)</option>
+        <option value="spaces">Mehrfach-Leerzeichen</option>
+      </select>
+    </div>
+  </div>
+</details>
+
+  </section>
+
+  <!-- 2) Einstellungen -->
+  <section class="panel">
+    <details open class="acc">
+      <summary class="acc-head">
+        <span>Einstellungen</span>
+        <span class="acc-hint muted">Spalten, Zeit, Export</span>
+      </summary>
+
       <div class="grid">
-        <div>
-          <label class="lbl">Datei</label>
-          <input type="file" id="file" accept="*/*" />
-        </div>
-        <div>
-          <label class="lbl">Delimiter</label>
-          <select id="delimiter">
-            <option value="auto">Automatisch</option>
-            <option value="\t">Tab (\t)</option>
-            <option value=",">Komma (,)</option>
-            <option value=";">Semikolon (;)</option>
-            <option value="|">Pipe (|)</option>
-            <option value="spaces">Mehrfach-Leerzeichen</option>
-          </select>
-        </div>
         <div>
           <label class="lbl">Vorschauzeilen</label>
           <input type="number" id="previewRows" value="200" min="1" />
         </div>
+
         <div>
           <label class="lbl">Spaltenzahl</label>
           <input type="number" id="colCount" value="0" min="0" />
         </div>
-      </div>
-      <div class="grid">
+
         <div>
-          <label class="lbl">Export-Dateiname (ohne Endung)</label>
-          <input type="text" id="outName" value="http-request" />
-        </div>
-        <div>
-          <label class="lbl">CSV Trennzeichen</label>
-          <select id="csvDelim">
-            <option value=",">Komma (,)</option>
-            <option value=";">Semikolon (;)</option>
+          <label class="lbl">Zeitspalte für ISO</label>
+          <select id="tsCol">
+            <option value="-1">Keine (nicht umwandeln)</option>
           </select>
         </div>
-      </div>
-      <div class="grid">
-        <div>
-            <label class="lbl">Zeitspalte für ISO</label>
-            <select id="tsCol">
-              <option value="-1">Keine</option>
-            </select>
-        </div>
+
         <div>
           <label class="lbl">ISO Zeitmodus</label>
           <select id="isoMode">
@@ -65,33 +102,76 @@
             <option value="none">Ohne (lokal)</option>
           </select>
         </div>
+      </div>
+
+      <div class="grid grid-3">
         <div>
-            <label class="lbl">Zeitzonen-Offset</label>
-            <input type="text" id="tzOffset" value="+00:00"  placeholder="02:00"/>
+          <label class="lbl">Zeitzonen-Offset</label>
+          <input type="text" id="tzOffset" value="+00:00" placeholder="+02:00" />
+        </div>
+
+        <div>
+          <label class="lbl">CSV Trennzeichen</label>
+          <select id="csvDelim">
+            <option value=",">Komma (,)</option>
+            <option value=";">Semikolon (;)</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="lbl">Export-Dateiname (optional)</label>
+          <input type="text" id="outName" placeholder="z.B. http-request" />
+          <div class="muted tiny">Wenn leer, wird der Dateiname automatisch verwendet.</div>
         </div>
       </div>
 
-      <div class="btns">
-        <button id="btnSuggest">Header vorschlagen</button>
+      <div class="btns btns-tight">
         <button id="btnPreview">Vorschau aktualisieren</button>
-        <button id="btnCSV" class="accent">Als CSV exportieren</button>
-        <button id="btnJSON" class="accent-2">Als JSON exportieren</button>
+        <button id="btnSuggest">Header vorschlagen</button>
+        <span class="spacer"></span>
+        <button id="btnCSV" class="accent">CSV herunterladen</button>
+        <button id="btnJSON" class="accent-2">JSON herunterladen</button>
         <button id="btnSave" class="accent-3">CSV speichern</button>
       </div>
 
       <div id="meta" class="muted"></div>
-    </section>
+    </details>
+  </section>
 
-    <section class="panel">
-      <h2>Vorschau</h2>
+  <!-- 3) Preview -->
+  <section class="panel">
+    <details open class="acc">
+      <summary class="acc-head">
+        <span>Vorschau</span>
+        <span class="acc-hint muted">Header editierbar</span>
+      </summary>
+
       <div class="scroll-container">
-        <button class="scroll-btn left" id="scrollLeft">◀</button>
-        <div class="table-wrap" id="tableWrap">
-        </div>
-        <button class="scroll-btn right" id="scrollRight">▶</button>
-    </div>
-    </section>
-  </main>
-  <script src="/app.js"></script>
-</body>
-</html>
+        <button class="scroll-btn left" id="scrollLeft" type="button">◀</button>
+        <div class="table-wrap" id="tableWrap"></div>
+        <button class="scroll-btn right" id="scrollRight" type="button">▶</button>
+      </div>
+    </details>
+  </section>
+
+  <!-- 4) Saved files -->
+  <section class="panel">
+    <details open class="acc">
+      <summary class="acc-head">
+        <span>Gespeicherte Dateien</span>
+        <span class="acc-hint muted">anzeigen / umbenennen / löschen</span>
+      </summary>
+
+      <div class="btns btns-tight">
+        <button id="btnRefreshSaved" type="button">Liste aktualisieren</button>
+      </div>
+
+      <div class="saved-wrap">
+        <div id="savedList" class="muted">Noch keine Dateien geladen.</div>
+      </div>
+    </details>
+  </section>
+</main>
+
+<script src="/modal.js"></script>
+<script src="/app.js"></script>

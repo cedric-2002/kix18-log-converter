@@ -3,9 +3,6 @@ import { Readable } from 'node:stream';
 
 const DEFAULT_COLS = 12;
 
-/* ------------------------------------------------------------------ */
-/* Zeit-Helfer                                                         */
-/* ------------------------------------------------------------------ */
 
 function normalizeDT(s) {
   return String(s ?? '')
@@ -14,21 +11,25 @@ function normalizeDT(s) {
     .trim();
 }
 
-// altes Format: DD-MM-YYYY HH:mm:ss  -> ISO ohne TZ
+
 function toISO8601Local_DDMMYYYY(dt) {
-  const m = String(dt).match(/^(\d{2})-(\d{2})-(\d{4})\s+(\d{2}):(\d{2}):(\d{2})$/);
+  const cleaned = String(dt ?? '')
+    .replace(/\s*-\s*/g, '-')   
+    .replace(/\s*:\s*/g, ':')   
+    .trim();
+
+  const m = cleaned.match(/^(\d{2})-(\d{2})-(\d{4})\s+(\d{2}):(\d{2}):(\d{2})$/);
   if (!m) return null;
+
   const [, d, mo, y, h, mi, s] = m;
   return `${y}-${mo}-${d}T${h}:${mi}:${s}`;
 }
 
-// neues Format: "Mon Dec  1 00:00:01 2025" (Wochentag optional) -> ISO ohne TZ
+
+
 function toISO8601Local_KIXBracket(dt) {
   const str = String(dt ?? '').trim();
 
-  // Beispiele:
-  // "Mon Dec  1 00:00:01 2025"
-  // "Dec  1 00:00:01 2025"
   const m = str.match(/^(?:[A-Za-z]{3}\s+)?([A-Za-z]{3})\s+(\d{1,2})\s+(\d{2}):(\d{2}):(\d{2})\s+(\d{4})$/);
   if (!m) return null;
 
@@ -50,10 +51,10 @@ function withTZ(isoNoTZ, { isoMode = 'default', tzOffset = '+00:00' } = {}) {
   if (!isoNoTZ) return '';
   if (isoMode === 'default') return `${isoNoTZ}Z`;
   if (isoMode === 'offset') return `${isoNoTZ}${tzOffset}`;
-  return isoNoTZ; // 'none'
+  return isoNoTZ; 
 }
 
-// unterstützt beide Zeitformate
+
 function convertTimeColumnInPlace(arr, { tsCol = -1, isoMode = 'default', tzOffset = '+00:00' } = {}) {
   if (!Array.isArray(arr)) return;
   if (!Number.isInteger(tsCol) || tsCol < 0 || tsCol >= arr.length) return;
@@ -61,23 +62,20 @@ function convertTimeColumnInPlace(arr, { tsCol = -1, isoMode = 'default', tzOffs
   const raw = String(arr[tsCol] ?? '').trim();
   if (!raw) return;
 
-  // 1) altes KIX-Format (DD-MM-YYYY ...)
+  
   const iso1 = toISO8601Local_DDMMYYYY(normalizeDT(raw));
   if (iso1) {
     arr[tsCol] = withTZ(iso1, { isoMode, tzOffset });
     return;
   }
 
-  // 2) neues Bracket-Format ("Mon Dec  1 ...")
+  
   const iso2 = toISO8601Local_KIXBracket(raw);
   if (iso2) {
     arr[tsCol] = `${iso2}Z`;
   }
 }
 
-/* ------------------------------------------------------------------ */
-/* Delimiter-Erkennung (nur tabular)                                   */
-/* ------------------------------------------------------------------ */
 
 export function detectDelimiterFromSample(sampleText) {
   const lines = sampleText.split(/\r?\n/).filter(Boolean).slice(0, 50);
@@ -114,12 +112,10 @@ function splitByDelim(line, delim) {
   return line.split(delim);
 }
 
-/* ------------------------------------------------------------------ */
-/* LogType-Erkennung + Bracket-Parser                                  */
-/* ------------------------------------------------------------------ */
+
 
 function isBracketLogLine(line) {
-  // typisch: starts with "[" and contains at least 2 occurrences of "]["
+
   if (!line) return false;
   if (!line.startsWith('[')) return false;
   const hits = (line.match(/\]\[/g) || []).length;
@@ -131,7 +127,7 @@ function decideLogType(sampleText, requested = 'auto') {
 
   if (req === 'tabular' || req === 'kix_bracket') return req;
 
-  // auto: erste sinnvolle Zeile checken
+
   const lines = sampleText.split(/\r?\n/);
   for (const l of lines) {
     const line = String(l ?? '').trim();
@@ -142,7 +138,7 @@ function decideLogType(sampleText, requested = 'auto') {
 }
 
 function parseKixBracketLine(line) {
-  // [Mon Dec  1 00:00:01 2025][Info][Kernel::...::Log] message
+
   const m = String(line).match(/^\[([^\]]+)\]\[([^\]]+)\]\[([^\]]+)\]\s*(.*)$/);
   if (!m) return null;
   const [, ts, level, component, msg] = m;
@@ -199,7 +195,7 @@ export async function previewRowsFromBuffer(
     };
   }
 
-  // TABULAR (wie vorher)
+  // TABULAR 
   const autod = detectDelimiterFromSample(text);
   const useDelim = delim === 'auto' ? autod.delim : delim;
 
@@ -231,9 +227,7 @@ export async function previewRowsFromBuffer(
   };
 }
 
-/* ------------------------------------------------------------------ */
-/* Streaming: CSV                                                      */
-/* ------------------------------------------------------------------ */
+
 
 export async function streamConvertToCSV(
   buffer,
@@ -280,7 +274,7 @@ export async function streamConvertToCSV(
     return;
   }
 
-  // TABULAR (wie vorher)
+  // TABULAR 
   const autod = detectDelimiterFromSample(text);
   const useDelim = delim === 'auto' ? autod.delim : delim;
   const rl = readline.createInterface({ input: Readable.from(text) });
@@ -306,9 +300,7 @@ export async function streamConvertToCSV(
   }
 }
 
-/* ------------------------------------------------------------------ */
-/* Streaming: JSON                                                     */
-/* ------------------------------------------------------------------ */
+
 
 export async function streamConvertToJSON(
   buffer,
@@ -357,7 +349,7 @@ export async function streamConvertToJSON(
     return;
   }
 
-  // TABULAR (wie vorher)
+  // TABULAR 
   const autod = detectDelimiterFromSample(text);
   const useDelim = delim === 'auto' ? autod.delim : delim;
   const rl = readline.createInterface({ input: Readable.from(text) });

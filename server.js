@@ -3,7 +3,6 @@ import multer from 'multer';
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { Writable } from 'node:stream';
 
 import {
   previewRowsFromBuffer,
@@ -11,20 +10,20 @@ import {
   streamConvertToJSON
 } from './parser/kixParser.js';
 
-
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
 
+
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 1024 * 1024 * 1024 } 
+  limits: { fileSize: 1024 * 1024 * 1024 } // 1 GB
 });
 
+
 const PUBLIC_DIR = path.join(__dirname, 'public');
-const SAVE_DIR = path.join(__dirname, 'saved');
+const SAVE_DIR   = path.join(__dirname, 'saved');
 
 if (!fs.existsSync(SAVE_DIR)) {
   fs.mkdirSync(SAVE_DIR, { recursive: true });
@@ -42,7 +41,7 @@ app.post('/api/preview', upload.single('file'), async (req, res) => {
     }
 
     const {
-      logType = 'auto',      
+      logType = 'auto',
       delimiter = 'auto',
       previewRows = 200,
       colCount = 0,
@@ -79,7 +78,7 @@ app.post('/api/convert', upload.single('file'), async (req, res) => {
     }
 
     const {
-      logType = 'auto',       
+      logType = 'auto',
       delimiter = 'auto',
       colCount = 0,
       headers = '[]',
@@ -140,7 +139,6 @@ app.post('/api/convert', upload.single('file'), async (req, res) => {
 });
 
 
-
 app.post('/api/save', upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
@@ -148,7 +146,7 @@ app.post('/api/save', upload.single('file'), async (req, res) => {
     }
 
     const {
-      logType = 'auto',       
+      logType = 'auto',
       delimiter = 'auto',
       colCount = 0,
       headers = '[]',
@@ -168,10 +166,10 @@ app.post('/api/save', upload.single('file'), async (req, res) => {
     const filename = `${safeBase}.${ext}`;
     const filepath = path.join(SAVE_DIR, filename);
 
-    const sink = streamToBufferWriter();
+    const fileStream = fs.createWriteStream(filepath);
 
     if (format === 'json') {
-      await streamConvertToJSON(req.file.buffer, sink, {
+      await streamConvertToJSON(req.file.buffer, fileStream, {
         logType,
         headers: hdrs,
         delim: delimiter,
@@ -181,7 +179,7 @@ app.post('/api/save', upload.single('file'), async (req, res) => {
         tzOffset: String(tzOffset)
       });
     } else {
-      await streamConvertToCSV(req.file.buffer, sink, {
+      await streamConvertToCSV(req.file.buffer, fileStream, {
         logType,
         headers: hdrs,
         delim: delimiter,
@@ -193,9 +191,12 @@ app.post('/api/save', upload.single('file'), async (req, res) => {
       });
     }
 
-    sink.end();
-    const outBuf = sink.getBuffer();
-    await fs.promises.writeFile(filepath, outBuf);
+    fileStream.end();
+
+    await new Promise((resolve, reject) => {
+      fileStream.on('finish', resolve);
+      fileStream.on('error', reject);
+    });
 
     res.json({
       message: 'Gespeichert',
@@ -209,6 +210,80 @@ app.post('/api/save', upload.single('file'), async (req, res) => {
     });
   }
 });
+
+// --- Saved files: list / delete / rename ---
+
+function isSafeName(name) {
+  // keine Pfade, nur einfache Dateinamen
+  if (!name) return false;
+  if (name.includes('/') || name.includes('\\')) return false;
+  if (name.includes('..')) return false;
+  return true;
+}
+
+app.get('/api/saved', async (_req, res) => {
+  try {
+    const entries = await fs.promises.readdir(SAVE_DIR, { withFileTypes: true });
+    const files = [];
+
+    for (const e of entries) {
+      if (!e.isFile()) continue;
+      const filename = e.name;
+      const filepath = path.join(SAVE_DIR, filename);
+      const st = await fs.promises.stat(filepath);
+
+      files.push({
+        name: filename,
+        size: st.size,
+        mtimeMs: st.mtimeMs,
+        url: `/save/${filename}`
+      });
+    }
+
+    files.sort((a, b) => b.mtimeMs - a.mtimeMs);
+    res.json({ files });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'List failed', details: String(e.message || e) });
+  }
+});
+
+app.delete('/api/saved/:name', async (req, res) => {
+  try {
+    const name = req.params.name;
+    if (!isSafeName(name)) return res.status(400).json({ error: 'Bad filename' });
+
+    const filepath = path.join(SAVE_DIR, name);
+    await fs.promises.unlink(filepath);
+
+    res.json({ ok: true });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Delete failed', details: String(e.message || e) });
+  }
+});
+
+app.post('/api/saved/rename', async (req, res) => {
+  try {
+    const { from, to } = req.body || {};
+    if (!isSafeName(from) || !isSafeName(to)) return res.status(400).json({ error: 'Bad filename' });
+
+    const fromPath = path.join(SAVE_DIR, from);
+    const toPath = path.join(SAVE_DIR, to);
+
+    // optional: nicht überschreiben
+    if (fs.existsSync(toPath)) return res.status(409).json({ error: 'Target exists' });
+
+    await fs.promises.rename(fromPath, toPath);
+
+    res.json({ ok: true, url: `/save/${to}` });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Rename failed', details: String(e.message || e) });
+  }
+});
+
+
 
 const PORT = process.env.PORT || 2000;
 app.listen(PORT, () => {
